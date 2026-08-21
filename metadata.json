@@ -1,0 +1,6 @@
+{
+  "name": "Flexxus ERP",
+  "description": "Sistema de Gestión y TPV",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

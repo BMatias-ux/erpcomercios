@@ -1,0 +1,109 @@
+{
+  "schemas": {
+    "activation_codes": {
+      "path": "activation_codes/{codeId}",
+      "description": "Global collection for activation codes",
+      "fields": {
+        "code": "string",
+        "status": "string"
+      }
+    },
+    "tenants": {
+      "path": "tenants/{tenantId}",
+      "description": "Tenant configuration",
+      "fields": {
+        "name": "string",
+        "currency": "string",
+        "subscription_status": "string",
+        "createdAt": "timestamp"
+      },
+      "subcollections": {
+        "products": {
+          "path": "products/{productId}",
+          "description": "Products catalog",
+          "fields": {
+            "code": "string",
+            "name": "string",
+            "category": "string",
+            "stock_actual": "number",
+            "stock_minimum": "number",
+            "purchase_price": "number",
+            "sale_price": "number",
+            "unit": "string"
+          }
+        },
+        "clients": {
+          "path": "clients/{clientId}",
+          "description": "Clients directory",
+          "fields": {
+            "name": "string",
+            "cuit": "string",
+            "phone": "string",
+            "address": "string",
+            "email": "string",
+            "balance": "number"
+          }
+        },
+        "suppliers": {
+          "path": "suppliers/{supplierId}",
+          "description": "Suppliers directory",
+          "fields": {
+            "name": "string",
+            "contact": "string",
+            "phone": "string",
+            "address": "string"
+          }
+        },
+        "purchases": {
+          "path": "purchases/{purchaseId}",
+          "description": "Merchandise purchases",
+          "fields": {
+            "supplierId": "string",
+            "date": "timestamp",
+            "total": "number"
+          }
+        },
+        "sales": {
+          "path": "sales/{saleId}",
+          "description": "Sales and budgets",
+          "fields": {
+            "clientId": "string",
+            "type": "string",
+            "date": "timestamp",
+            "total": "number",
+            "method": "string",
+            "status": "string"
+          }
+        },
+        "logistics": {
+          "path": "logistics/{deliveryId}",
+          "description": "Deliveries",
+          "fields": {
+            "saleId": "string",
+            "status": "string",
+            "date": "timestamp"
+          }
+        },
+        "cash_sessions": {
+          "path": "cash_sessions/{sessionId}",
+          "description": "Cash register sessions",
+          "fields": {
+            "openedAt": "timestamp",
+            "closedAt": "timestamp",
+            "initial_amount": "number",
+            "final_amount": "number",
+            "status": "string"
+          }
+        },
+        "users": {
+          "path": "users/{userId}",
+          "description": "User profiles",
+          "fields": {
+            "email": "string",
+            "role": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,247 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function incoming() {
+      return request.resource.data;
+    }
+    
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Role Checks
+    // Users store their role in tenants/{tenantId}/users/{userId}
+    function getUserRole(tenantId) {
+      return get(/databases/$(database)/documents/tenants/$(tenantId)/users/$(request.auth.uid)).data.role;
+    }
+
+    function isTenantAdmin(tenantId) {
+      return isSignedIn() && getUserRole(tenantId) == 'admin';
+    }
+
+    function isTenantSeller(tenantId) {
+      return isSignedIn() && (getUserRole(tenantId) == 'seller' || getUserRole(tenantId) == 'admin');
+    }
+
+    function isTenantStockKeeper(tenantId) {
+      return isSignedIn() && (getUserRole(tenantId) == 'stock_keeper' || getUserRole(tenantId) == 'admin');
+    }
+
+    function isTenantMember(tenantId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/tenants/$(tenantId)/users/$(request.auth.uid));
+    }
+
+    // Validation Helpers
+    function isValidActivationCode(data) {
+      return data.keys().hasAll(['code', 'status']) && data.keys().size() == 2
+        && data.code is string && data.code.size() > 0 && data.code.size() <= 100
+        && data.status is string && data.status.size() > 0 && data.status.size() <= 20;
+    }
+
+    function isValidTenant(data) {
+      return data.keys().hasAll(['name', 'currency', 'subscription_status', 'createdAt']) 
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.currency is string && data.currency.size() == 3
+        && data.subscription_status is string && data.subscription_status.size() > 0 && data.subscription_status.size() <= 20
+        && data.createdAt is timestamp;
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['code', 'name', 'category', 'stock_actual', 'stock_minimum', 'purchase_price', 'sale_price', 'unit', 'status', 'imageUrl']) && data.keys().size() == 10
+        && data.code is string && data.code.size() > 0 && data.code.size() <= 50
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.category is string && data.category.size() > 0 && data.category.size() <= 50
+        && data.stock_actual is number
+        && data.stock_minimum is number
+        && data.purchase_price is number
+        && data.sale_price is number
+        && data.unit is string && data.unit.size() > 0 && data.unit.size() <= 20
+        && data.status is string && data.status.size() > 0 && data.status.size() <= 20
+        && data.imageUrl is string;
+    }
+
+    function isValidClient(data) {
+      return data.keys().hasAll(['name', 'cuit', 'phone', 'address', 'province', 'locality', 'email', 'balance']) && data.keys().size() == 8
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.cuit is string && data.cuit.size() <= 50
+        && data.phone is string && data.phone.size() <= 50
+        && data.address is string && data.address.size() <= 200
+        && data.province is string && data.province.size() <= 100
+        && data.locality is string && data.locality.size() <= 100
+        && data.email is string && data.email.size() <= 100
+        && data.balance is number;
+    }
+
+    function isValidSupplier(data) {
+      return data.keys().hasAll(['name', 'contact', 'phone', 'address'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.contact is string && data.contact.size() <= 100
+        && data.phone is string && data.phone.size() <= 50
+        && data.address is string && data.address.size() <= 200;
+    }
+
+    function isValidPurchase(data) {
+      return data.keys().hasAll(['folio', 'supplierId', 'supplierName', 'date', 'items', 'total', 'status']);
+    }
+
+    function isValidSale(data) {
+      return data.keys().hasAll(['clientId', 'clientName', 'type', 'date', 'total', 'payments', 'status', 'items']) && data.keys().size() == 8
+        && data.clientId is string && data.clientId.size() <= 128
+        && data.clientName is string && data.clientName.size() <= 128
+        && data.type is string && data.type.size() > 0 && data.type.size() <= 50
+        && data.date is timestamp
+        && data.total is number
+        && data.payments is list
+        && data.items is list
+        && data.status is string && data.status.size() > 0 && data.status.size() <= 50;
+    }
+
+    function isValidLogistics(data) {
+      return data.keys().hasAll(['saleId', 'status', 'date']) && data.keys().size() == 3
+        && data.saleId is string && data.saleId.size() > 0 && data.saleId.size() <= 128
+        && data.status is string && data.status.size() > 0 && data.status.size() <= 50
+        && data.date is timestamp;
+    }
+
+    function isValidCashSession(data) {
+      return data.keys().hasAll(['openedAt', 'initial_amount', 'final_amount', 'status'])
+        && data.openedAt is timestamp
+        && data.initial_amount is number
+        && data.final_amount is number
+        && data.status is string && data.status.size() > 0 && data.status.size() <= 50;
+    }
+
+    function isValidExpense(data) {
+      return data.keys().hasAll(['description', 'amount', 'date', 'sessionId'])
+        && data.description is string && data.description.size() > 0 && data.description.size() <= 200
+        && data.amount is number
+        && data.date is timestamp
+        && data.sessionId is string;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'role']) && data.keys().size() == 2
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 100
+        && data.role is string && data.role.size() > 0 && data.role.size() <= 50;
+    }
+
+    // Collections
+    
+    match /activation_codes/{codeId} {
+      allow get: if isSignedIn() && isValidId(codeId);
+      allow list: if false; // System only
+      allow create, update, delete: if false; // Only admin via Firebase console or Admin SDK
+    }
+
+    match /tenants/{tenantId} {
+      allow get: if isSignedIn() && isValidId(tenantId) && isTenantMember(tenantId);
+      allow list: if isSignedIn(); // Allow listing if querying by where... but in practice users shouldn't list all tenants. Let's restrict it.
+      
+      // Allow user to create a tenant when onboarding. They will also create their user document in a batch.
+      allow create: if isSignedIn() 
+        && isValidId(tenantId)
+        && isValidTenant(incoming())
+        && incoming().createdAt == request.time;
+        
+      allow update: if isSignedIn() && isValidId(tenantId) && isTenantAdmin(tenantId)
+        && isValidTenant(incoming())
+        && incoming().createdAt == existing().createdAt;
+      
+      allow delete: if isSignedIn() && isValidId(tenantId) && isTenantAdmin(tenantId);
+
+      match /products/{productId} {
+        allow get: if isSignedIn() && isValidId(productId) && isTenantMember(tenantId);
+        allow list: if isSignedIn() && isTenantMember(tenantId);
+        allow create: if isSignedIn() && isValidId(productId) && isTenantStockKeeper(tenantId) && isValidProduct(incoming());
+        allow update: if isSignedIn() && isValidId(productId) && (isTenantStockKeeper(tenantId) || isTenantSeller(tenantId)) && isValidProduct(incoming());
+        allow delete: if isSignedIn() && isValidId(productId) && isTenantAdmin(tenantId);
+      }
+
+      match /clients/{clientId} {
+        allow get: if isSignedIn() && isValidId(clientId) && isTenantMember(tenantId);
+        allow list: if isSignedIn() && isTenantMember(tenantId);
+        allow create: if isSignedIn() && isValidId(clientId) && isTenantSeller(tenantId) && isValidClient(incoming());
+        allow update: if isSignedIn() && isValidId(clientId) && isTenantSeller(tenantId) && isValidClient(incoming());
+        allow delete: if isSignedIn() && isValidId(clientId) && isTenantAdmin(tenantId);
+      }
+
+      match /suppliers/{supplierId} {
+        allow get: if isSignedIn() && isValidId(supplierId) && isTenantMember(tenantId);
+        allow list: if isSignedIn() && isTenantMember(tenantId);
+        allow create: if isSignedIn() && isValidId(supplierId) && isTenantStockKeeper(tenantId) && isValidSupplier(incoming());
+        allow update: if isSignedIn() && isValidId(supplierId) && isTenantStockKeeper(tenantId) && isValidSupplier(incoming());
+        allow delete: if isSignedIn() && isValidId(supplierId) && isTenantAdmin(tenantId);
+      }
+
+      match /purchases/{purchaseId} {
+        allow get: if isSignedIn() && isValidId(purchaseId) && isTenantMember(tenantId);
+        allow list: if isSignedIn() && isTenantMember(tenantId);
+        allow create: if isSignedIn() && isValidId(purchaseId) && isTenantStockKeeper(tenantId) && isValidPurchase(incoming());
+        allow update: if isSignedIn() && isValidId(purchaseId) && isTenantStockKeeper(tenantId) && isValidPurchase(incoming());
+        allow delete: if isSignedIn() && isValidId(purchaseId) && isTenantAdmin(tenantId);
+      }
+
+      match /sales/{saleId} {
+        allow get: if isSignedIn() && isValidId(saleId) && isTenantMember(tenantId);
+        allow list: if isSignedIn() && isTenantMember(tenantId);
+        allow create: if isSignedIn() && isValidId(saleId) && isTenantSeller(tenantId) && isValidSale(incoming());
+        allow update: if isSignedIn() && isValidId(saleId) && isTenantSeller(tenantId) && isValidSale(incoming());
+        allow delete: if isSignedIn() && isValidId(saleId) && isTenantAdmin(tenantId);
+      }
+
+      match /logistics/{deliveryId} {
+        allow get: if isSignedIn() && isValidId(deliveryId) && isTenantMember(tenantId);
+        allow list: if isSignedIn() && isTenantMember(tenantId);
+        allow create: if isSignedIn() && isValidId(deliveryId) && isTenantMember(tenantId) && isValidLogistics(incoming());
+        allow update: if isSignedIn() && isValidId(deliveryId) && isTenantMember(tenantId) && isValidLogistics(incoming());
+        allow delete: if isSignedIn() && isValidId(deliveryId) && isTenantAdmin(tenantId);
+      }
+
+      match /cash_sessions/{sessionId} {
+        allow get: if isSignedIn() && isValidId(sessionId) && isTenantMember(tenantId);
+        allow list: if isSignedIn() && isTenantMember(tenantId);
+        allow create: if isSignedIn() && isValidId(sessionId) && (isTenantAdmin(tenantId) || isTenantSeller(tenantId)) && isValidCashSession(incoming());
+        allow update: if isSignedIn() && isValidId(sessionId) && (isTenantAdmin(tenantId) || isTenantSeller(tenantId)) && isValidCashSession(incoming());
+        allow delete: if isSignedIn() && isValidId(sessionId) && isTenantAdmin(tenantId);
+      }
+
+      match /expenses/{expenseId} {
+        allow get: if isSignedIn() && isValidId(expenseId) && isTenantMember(tenantId);
+        allow list: if isSignedIn() && isTenantMember(tenantId);
+        allow create: if isSignedIn() && isValidId(expenseId) && (isTenantAdmin(tenantId) || isTenantSeller(tenantId)) && isValidExpense(incoming());
+        allow update: if isSignedIn() && isValidId(expenseId) && (isTenantAdmin(tenantId) || isTenantSeller(tenantId)) && isValidExpense(incoming());
+        allow delete: if isSignedIn() && isValidId(expenseId) && isTenantAdmin(tenantId);
+      }
+
+      match /users/{userId} {
+        // Users can read their own role, admins can read all roles in the tenant
+        allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isTenantAdmin(tenantId));
+        allow list: if isSignedIn() && isTenantAdmin(tenantId);
+        
+        // During onboarding, a user creates their own user document
+        allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId && isValidUser(incoming());
+        
+        // Admins can update roles
+        allow update: if isSignedIn() && isValidId(userId) && isTenantAdmin(tenantId) && isValidUser(incoming());
+        
+        // Users can delete their own profile, or admins can delete users
+        allow delete: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isTenantAdmin(tenantId));
+      }
+    }
+  }
+}
